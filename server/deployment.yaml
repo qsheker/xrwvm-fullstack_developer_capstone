@@ -22,6 +22,8 @@ spec:
       app: best-cars-web
   template:
     metadata:
+      annotations:
+        best-cars/config-hash: REPLACE_CONFIG_HASH
       labels:
         app: best-cars-web
     spec:

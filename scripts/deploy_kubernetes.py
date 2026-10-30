@@ -1,5 +1,6 @@
 """Deploy this demonstration into the selected, pre-authorized lab namespace."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -47,16 +48,19 @@ if not existing:
            "metadata": {"name": "best-cars-secrets"}, "type": "Opaque",
            "stringData": {"DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
                           "REVIEW_API_KEY": secrets.token_urlsafe(48)}})
-apply({"apiVersion": "v1", "kind": "ConfigMap",
+config = {"apiVersion": "v1", "kind": "ConfigMap",
        "metadata": {"name": "best-cars-config"}, "data": {
            "DJANGO_DEBUG": "0", "DJANGO_ALLOWED_HOSTS": origin.hostname + ",localhost",
            "DJANGO_CSRF_TRUSTED_ORIGINS": options.origin.rstrip("/"),
            "BACKEND_URL": "http://best-cars-api:3030",
            "SENTIMENT_URL": options.sentiment_url.rstrip("/"),
-           "TRUST_PROXY": "1"}})
+           "TRUST_PROXY": "1"}}
+apply(config)
+config_hash = hashlib.sha256(json.dumps(config["data"], sort_keys=True).encode()).hexdigest()
 manifest = (Path(__file__).resolve().parents[1] / "server/deployment.yaml").read_text()
 for placeholder, value in {"REPLACE_NAMESPACE": options.namespace,
                            "REPLACE_TAG": options.tag,
+                           "REPLACE_CONFIG_HASH": config_hash,
                            "REPLACE_STORAGE_CLASS": options.storage_class}.items():
     manifest = manifest.replace(placeholder, value)
 if options.ephemeral_lab_storage:
