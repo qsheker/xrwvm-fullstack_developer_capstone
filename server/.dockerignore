@@ -7,3 +7,5 @@ staticfiles
 djangoenv
 **/__pycache__
 database
+**/.env
+**/.env.*

@@ -29,7 +29,8 @@ jobs:
         run: python -m unittest test_sentiment
   javascript:
     name: JavaScript checks, Mongo API tests and React build
-    runs-on: ubuntu-latest
+    # MongoDB 8.0 rejects Linux 6.19+; use the supported 22.04 runner kernel.
+    runs-on: ubuntu-22.04
     services:
       mongo:
         image: mongo:8.0
