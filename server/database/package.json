@@ -1,17 +1,21 @@
 {
-  "name": "database",
+  "name": "best-cars-dealership-api",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "description": "Express/MongoDB dealer directory and customer reviews",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js",
+    "lint": "jshint app.js dealership.js review.js",
+    "test": "node --test"
   },
-  "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
   "dependencies": {
-    "cors": "^2.8.5",    
-    "express": "^4.18.2",
-    "mongodb": "^6.3.0",
-    "mongoose": "^8.0.1"
+    "express": "^4.21.2",
+    "mongoose": "^8.19.0"
+  },
+  "devDependencies": {
+    "jshint": "^2.13.6",
+    "supertest": "^7.1.4"
   }
 }

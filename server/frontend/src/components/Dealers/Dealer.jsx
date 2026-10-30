@@ -1,93 +1,39 @@
-import React, { useState,useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import "./Dealers.css";
-import "../assets/style.css";
-import positive_icon from "../assets/positive.png"
-import neutral_icon from "../assets/neutral.png"
-import negative_icon from "../assets/negative.png"
-import review_icon from "../assets/reviewbutton.png"
-import Header from '../Header/Header';
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../../api";
+import { useAuth } from "../../Auth";
 
-const Dealer = () => {
-
-
-  const [dealer, setDealer] = useState({});
+export default function Dealer() {
+  const { id } = useParams();
+  const { user } = useAuth();
+  const [dealer, setDealer] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [unreviewed, setUnreviewed] = useState(false);
-  const [postReview, setPostReview] = useState(<></>)
-
-  let curr_url = window.location.href;
-  let root_url = curr_url.substring(0,curr_url.indexOf("dealer"));
-  let params = useParams();
-  let id =params.id;
-  let dealer_url = root_url+`djangoapp/dealer/${id}`;
-  let reviews_url = root_url+`djangoapp/reviews/dealer/${id}`;
-  let post_review = root_url+`postreview/${id}`;
-  
-  const get_dealer = async ()=>{
-    const res = await fetch(dealer_url, {
-      method: "GET"
-    });
-    const retobj = await res.json();
-    
-    if(retobj.status === 200) {
-      let dealerobjs = Array.from(retobj.dealer)
-      setDealer(dealerobjs[0])
-    }
-  }
-
-  const get_reviews = async ()=>{
-    const res = await fetch(reviews_url, {
-      method: "GET"
-    });
-    const retobj = await res.json();
-    
-    if(retobj.status === 200) {
-      if(retobj.reviews.length > 0){
-        setReviews(retobj.reviews)
-      } else {
-        setUnreviewed(true);
-      }
-    }
-  }
-
-  const senti_icon = (sentiment)=>{
-    let icon = sentiment === "positive"?positive_icon:sentiment==="negative"?negative_icon:neutral_icon;
-    return icon;
-  }
-
+  const [error, setError] = useState("");
   useEffect(() => {
-    get_dealer();
-    get_reviews();
-    if(sessionStorage.getItem("username")) {
-      setPostReview(<a href={post_review}><img src={review_icon} style={{width:'10%',marginLeft:'10px',marginTop:'10px'}} alt='Post Review'/></a>)
-
-      
-    }
-  },[]);  
-
-
-return(
-  <div style={{margin:"20px"}}>
-      <Header/>
-      <div style={{marginTop:"10px"}}>
-      <h1 style={{color:"grey"}}>{dealer.full_name}{postReview}</h1>
-      <h4  style={{color:"grey"}}>{dealer['city']},{dealer['address']}, Zip - {dealer['zip']}, {dealer['state']} </h4>
-      </div>
-      <div class="reviews_panel">
-      {reviews.length === 0 && unreviewed === false ? (
-        <text>Loading Reviews....</text>
-      ):  unreviewed === true? <div>No reviews yet! </div> :
-      reviews.map(review => (
-        <div className='review_panel'>
-          <img src={senti_icon(review.sentiment)} className="emotion_icon" alt='Sentiment'/>
-          <div className='review'>{review.review}</div>
-          <div className="reviewer">{review.name} {review.car_make} {review.car_model} {review.car_year}</div>
-        </div>
-      ))}
-    </div>  
-  </div>
-)
+    const controller = new AbortController();
+    setDealer(null); setError("");
+    Promise.all([
+      api("/djangoapp/dealer/" + id, { signal: controller.signal }),
+      api("/djangoapp/reviews/dealer/" + id, { signal: controller.signal })
+    ]).then(([detail, feedback]) => {
+      setDealer(detail.dealer[0]); setReviews(feedback.reviews);
+    }).catch(err => { if (err.name !== "AbortError") setError(err.message); });
+    return () => controller.abort();
+  }, [id]);
+  if (error) return <p className="alert" role="alert">{error}</p>;
+  if (!dealer) return <p role="status">Loading dealer and reviews…</p>;
+  return <>
+    <Link className="back-link" to="/dealers">← All dealerships</Link>
+    <div className="page-heading"><div><h1>{dealer.full_name}</h1><p>{dealer.address}, {dealer.city}, {dealer.state} {dealer.zip}</p></div>
+      <Link className="button" to={user ? "/postreview/" + id : "/login?next=/postreview/" + id}>{user ? "Post Review" : "Login to review"}</Link>
+    </div>
+    <div className="section-heading"><h2>Customer reviews</h2><span>{reviews.length} {reviews.length === 1 ? "review" : "reviews"}</span></div>
+    {reviews.length === 0 ? <p className="empty-state">No reviews yet. Share the first experience with this dealership.</p> :
+      <div className="reviews-grid">{reviews.map(review => <article className="card review-card" key={review.id}>
+        <div className="review-heading"><h3>{review.name}</h3><span className={"sentiment " + review.sentiment}>{review.sentiment === "unavailable" ? "Sentiment unavailable" : review.sentiment}</span></div>
+        <p className="review-text">{review.review}</p>
+        <p className="review-meta">{review.purchase ? [review.car_make, review.car_model, review.car_year].join(" ") : "Dealership visit"}</p>
+        {review.purchase && <p className="review-meta">Purchased: {review.purchase_date}</p>}
+      </article>)}</div>}
+  </>;
 }
-
-export default Dealer

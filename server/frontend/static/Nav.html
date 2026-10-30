@@ -1,0 +1,5 @@
+<header class="site-header"><nav aria-label="Main navigation">
+<a class="brand" href="/"><span class="brand-mark" aria-hidden="true">BC</span>Best Cars</a>
+<div class="nav-links"><a href="/dealers">Dealerships</a><a href="/about/" {% if request.path == '/about/' %}aria-current="page"{% endif %}>About Us</a><a href="/contact/" {% if request.path == '/contact/' %}aria-current="page"{% endif %}>Contact Us</a></div>
+<div class="account">{% if user.is_authenticated %}<span class="username">{{ user.username }}</span><button class="text-button" id="logout">Logout</button>{% else %}<a href="/login">Login</a><a href="/register">Register</a>{% endif %}</div>
+</nav><p id="session-error" role="alert" hidden></p></header>

@@ -1,0 +1,77 @@
+name: Lint, test and build
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python:
+    name: Python lint and Django tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        run: pip install -r server/requirements.txt -r server/djangoapp/microservices/requirements.txt flake8
+      - name: Lint Python files
+        run: flake8 server/djangoapp server/djangoproj scripts
+      - name: Check migrations and Django behavior
+        run: |
+          python server/manage.py makemigrations --check --dry-run
+          python server/manage.py test djangoapp
+      - name: Check sentiment classifications
+        working-directory: server/djangoapp/microservices
+        run: python -m unittest test_sentiment
+  javascript:
+    name: JavaScript checks, Mongo API tests and React build
+    # MongoDB 8.0 rejects Linux 6.19+; use the supported 22.04 runner kernel.
+    runs-on: ubuntu-22.04
+    services:
+      mongo:
+        image: mongo:8.0
+        ports: ['27017:27017']
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            server/database/package-lock.json
+            server/frontend/package-lock.json
+      - name: Install API dependencies
+        working-directory: server/database
+        run: npm ci
+      - name: Check JavaScript syntax
+        working-directory: server/database
+        run: npm run lint
+      - name: Test Express endpoints and data persistence
+        working-directory: server/database
+        env:
+          TEST_MONGO_URL: mongodb://127.0.0.1:27017/best_cars_test
+        run: npm test
+      - name: Install frontend dependencies
+        working-directory: server/frontend
+        run: npm ci
+      - name: Build and lint React application
+        working-directory: server/frontend
+        run: npm run build
+  container:
+    name: Build application containers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Django and React image
+        run: docker build -t best-cars:ci server
+      - name: Build Express image
+        run: docker build -t best-cars-api:ci server/database
+      - name: Build sentiment image
+        run: docker build -t best-cars-sentiment:ci server/djangoapp/microservices

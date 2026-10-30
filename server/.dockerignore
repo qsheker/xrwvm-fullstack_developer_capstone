@@ -1,0 +1,11 @@
+**/node_modules
+frontend/build
+staticfiles
+*.sqlite3*
+.env
+.env.*
+djangoenv
+**/__pycache__
+database
+**/.env
+**/.env.*

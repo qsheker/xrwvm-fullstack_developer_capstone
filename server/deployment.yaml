@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: best-cars-django-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: REPLACE_STORAGE_CLASS
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: best-cars-web
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: best-cars-web
+  template:
+    metadata:
+      annotations:
+        best-cars/config-hash: REPLACE_CONFIG_HASH
+      labels:
+        app: best-cars-web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: web
+          image: us.icr.io/REPLACE_NAMESPACE/best-cars-web:REPLACE_TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: best-cars-config
+            - secretRef:
+                name: best-cars-secrets
+          env:
+            - name: DJANGO_DB_PATH
+              value: /data/db.sqlite3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+              httpHeaders:
+                - name: Host
+                  value: localhost
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: best-cars-django-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: best-cars-web
+spec:
+  selector:
+    app: best-cars-web
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: best-cars-mongo-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: REPLACE_STORAGE_CLASS
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: best-cars-mongo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: best-cars-mongo
+  template:
+    metadata:
+      labels:
+        app: best-cars-mongo
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: mongo
+          image: mongo:8.0
+          command: [mongod, --bind_ip_all, --dbpath, /data/db]
+          ports:
+            - containerPort: 27017
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            exec:
+              command: [mongosh, --quiet, --eval, "db.adminCommand({ping:1})"]
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 27017}
+            initialDelaySeconds: 45
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: best-cars-mongo-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: best-cars-mongo
+spec:
+  selector: {app: best-cars-mongo}
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: best-cars-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: best-cars-api}
+  template:
+    metadata:
+      labels: {app: best-cars-api}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: us.icr.io/REPLACE_NAMESPACE/best-cars-api:REPLACE_TAG
+          ports:
+            - containerPort: 3030
+          env:
+            - name: MONGO_URL
+              value: mongodb://best-cars-mongo:27017/dealershipsDB
+            - name: REVIEW_API_KEY
+              valueFrom:
+                secretKeyRef: {name: best-cars-secrets, key: REVIEW_API_KEY}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 3030}
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: 3030}
+            initialDelaySeconds: 45
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: best-cars-api
+spec:
+  selector: {app: best-cars-api}
+  ports:
+    - port: 3030
+      targetPort: 3030
