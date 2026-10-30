@@ -49,7 +49,7 @@ if not existing:
            "stringData": {"DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
                           "REVIEW_API_KEY": secrets.token_urlsafe(48)}})
 config = {"apiVersion": "v1", "kind": "ConfigMap",
-       "metadata": {"name": "best-cars-config"}, "data": {
+          "metadata": {"name": "best-cars-config"}, "data": {
            "DJANGO_DEBUG": "0", "DJANGO_ALLOWED_HOSTS": origin.hostname + ",localhost",
            "DJANGO_CSRF_TRUSTED_ORIGINS": options.origin.rstrip("/"),
            "BACKEND_URL": "http://best-cars-api:3030",

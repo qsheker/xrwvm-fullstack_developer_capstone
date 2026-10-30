@@ -19,7 +19,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r server/requirements.txt -r server/djangoapp/microservices/requirements.txt flake8
       - name: Lint Python files
-        run: flake8 server/djangoapp server/djangoproj
+        run: flake8 server/djangoapp server/djangoproj scripts
       - name: Check migrations and Django behavior
         run: |
           python server/manage.py makemigrations --check --dry-run
