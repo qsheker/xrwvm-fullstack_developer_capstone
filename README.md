@@ -11,7 +11,7 @@ Visitors can browse 50 sample US dealerships, filter by state, search by dealer 
 - **Express + MongoDB**: dealership data and persistent customer reviews.
 - **Flask + NLTK VADER**: positive, negative and neutral sentiment.
 - **Gunicorn + WhiteNoise**: application serving and compiled static assets.
-- **Docker / Kubernetes**: separate services, health probes and persistent data volumes.
+- **Docker / Kubernetes**: separate services, health probes and configurable data volumes.
 - **GitHub Actions**: Python lint, Django tests, Express/Mongo integration tests, sentiment tests, React build and container builds.
 
 The browser calls Django on the same origin. Django calls the two supporting services. A server-only shared key protects Express review writes. Review authors are taken from the authenticated session, never from browser-supplied names.
@@ -106,7 +106,7 @@ Malformed inputs return 400, invalid login / anonymous review 401, missing deale
 ## Validation
 
 ```sh
-flake8 server/djangoapp server/djangoproj
+flake8 server/djangoapp server/djangoproj scripts
 python server/manage.py makemigrations --check --dry-run
 python server/manage.py test djangoapp
 (cd server/djangoapp/microservices && python -m unittest test_sentiment)
@@ -119,7 +119,11 @@ Express tests use and remove only a database named `best_cars_test`. Set `TEST_M
 
 ## Cloud deployment
 
-See [deployment instructions](docs/deployment.md). Kubernetes manifests use persistent volumes, non-root containers and internal services for MongoDB and Express. Publish only Django and the sentiment service required by the exercise. Set the exact HTTPS host and trusted origin and use a generated secret key; production configuration fails if secrets are missing.
+See [deployment instructions](docs/deployment.md). The manifests support persistent volumes, non-root containers and internal services for MongoDB and Express. The actual Skills Network cluster has no usable storage class and denies NetworkPolicy creation, so its documented demonstration mode uses temporary volumes. Container restarts retain data; pod replacement and lab expiry do not. Local Docker Compose uses persistent volumes.
+
+The [temporary course deployment](https://bettywhitec7-8000.theiadockernext-0-labs-prod-theiak8s-4-tor01.proxy.cognitiveclass.ai/) runs Django in Kubernetes and calls a [Code Engine sentiment service](https://best-cars-sentiment.2gjtwx6eao4a.us-south.codeengine.appdomain.cloud/healthz). Availability depends on the active Skills Network lab and port-forward session.
+
+Publish only Django and the sentiment service required by the exercise. Set the exact HTTPS host and trusted origin and use a generated secret key; production configuration fails if secrets are missing. A configuration checksum rolls out Django when its environment changes.
 
 ## Course deliverables
 
