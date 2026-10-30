@@ -127,3 +127,21 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Best Cars build outputs and local configuration
+.env
+.env.*
+!.env.example
+**/__pycache__/
+*.pyc
+*.sqlite3
+*.sqlite3-*
+.venv/
+**/djangoenv/
+**/node_modules/
+server/frontend/build/
+server/staticfiles/
+.coverage
+htmlcov/
+.DS_Store
+.taste-skill/

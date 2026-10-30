@@ -1,0 +1,39 @@
+services:
+  mongo:
+    image: mongo:8.0
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  api:
+    build: server/database
+    environment:
+      MONGO_URL: mongodb://mongo:27017/dealershipsDB
+      REVIEW_API_KEY: ${REVIEW_API_KEY:?Set REVIEW_API_KEY in .env}
+    depends_on:
+      mongo:
+        condition: service_healthy
+  sentiment:
+    build: server/djangoapp/microservices
+  web:
+    build: server
+    ports:
+      - "127.0.0.1:8002:8000"
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:8002,http://127.0.0.1:8002
+      BACKEND_URL: http://api:3030
+      SENTIMENT_URL: http://sentiment:5000
+      REVIEW_API_KEY: ${REVIEW_API_KEY:?Set REVIEW_API_KEY in .env}
+    volumes:
+      - django_data:/data
+    depends_on:
+      - api
+      - sentiment
+volumes:
+  mongo_data:
+  django_data:
