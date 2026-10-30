@@ -59,6 +59,7 @@ spec:
                   value: localhost
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
@@ -68,6 +69,8 @@ spec:
                   value: localhost
             initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -140,6 +143,7 @@ spec:
           livenessProbe:
             tcpSocket: {port: 27017}
             initialDelaySeconds: 45
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: [ALL]}
@@ -194,9 +198,11 @@ spec:
           readinessProbe:
             httpGet: {path: /healthz, port: 3030}
             initialDelaySeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: {path: /healthz, port: 3030}
             initialDelaySeconds: 45
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: [ALL]}

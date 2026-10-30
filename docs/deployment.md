@@ -1,39 +1,53 @@
 # Deploy Best Cars
 
-Build and push the three images from their Dockerfiles. Use distinct names for this capstone so earlier course projects are not replaced:
+Three Docker images implement the application:
 
-- `best-cars-web`: context `server`
-- `best-cars-api`: context `server/database`
-- `best-cars-sentiment`: context `server/djangoapp/microservices`
+- `best-cars-web`: build context `server`; React, Django, WhiteNoise and Gunicorn.
+- `best-cars-api`: build context `server/database`; Express and MongoDB access.
+- `best-cars-sentiment`: build context `server/djangoapp/microservices`; Flask and bundled VADER lexicon.
 
-The main image builds React and collects Django static files. It does not contain a database, environment file or credentials.
+The images contain neither databases nor credentials. The application image revision used for the course demonstration is `4c2af33` in the `us.icr.io/sn-labs-bettywhitec7` registry namespace.
 
-## Kubernetes / OpenShift
+## IBM Code Engine
 
-The initial Django deployment, service and PVC are in `server/deployment.yaml`. Replace the image namespace, create the referenced ConfigMap and Secret, and use the namespace-appropriate volume security context before applying. Include `localhost` among allowed hosts so health probes can reach the app.
-
-The deployment must have:
-1. MongoDB with a persistent data volume and internal service.
-2. Express with `MONGO_URL`, a shared `REVIEW_API_KEY` secret, and internal service.
-3. Django with a persistent SQLite volume, `DJANGO_DEBUG=0`, a random `DJANGO_SECRET_KEY`, the same `REVIEW_API_KEY`, exact `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS`, `BACKEND_URL`, and `SENTIMENT_URL`.
-4. A trusted HTTPS ingress or OpenShift route for Django. Set `TRUST_PROXY=1` only when the ingress overwrites forwarding headers.
-5. HTTP readiness and liveness probes at `/healthz`.
-6. One Django replica with a Recreate strategy because this educational deployment uses a single SQLite volume.
-
-Django migrations and the idempotent catalog seed run at container startup. Create the administrator with `python manage.py createsuperuser` inside the running container. The image supports an arbitrary OpenShift UID with group 0. Mount the data volume with the namespace's permitted file-system group.
-
-Do not expose MongoDB to the internet. Express reads contain only sample public data, but its write endpoint still requires the server-only key.
-
-## IBM Code Engine sentiment service
-
-Deploy the sentiment image on port 5000 using the lab's registry secret. Validate:
+The sentiment service was deployed with:
 
 ```sh
-curl --fail 'https://YOUR-SENTIMENT-URL/analyze/Fantastic%20services'
+ibmcloud ce application create --name best-cars-sentiment \
+  --image us.icr.io/sn-labs-bettywhitec7/best-cars-sentiment:4c2af33 \
+  --registry-secret icr-secret --port 5000 --min-scale 1 --max-scale 1
+curl --fail 'https://best-cars-sentiment.2gjtwx6eao4a.us-south.codeengine.appdomain.cloud/analyze/Fantastic%20services'
 ```
 
-The response must report `positive`. Set that HTTPS origin as Django's `SENTIMENT_URL`. The VADER lexicon is bundled, so the running service needs no download.
+The verified response was `{"score":0.5574,"sentiment":"positive"}`.
 
-## Persistence and scope
+## Kubernetes
 
-Restarting the API does not erase reviews. SQLite and MongoDB data belong on persistent volumes. Do not put credentials in the repository or bake a database into an image. This is a course demonstration, not a production dealership system; a production rollout would also need PostgreSQL, rate limiting, backups, observability and a reviewed privacy policy.
+`server/deployment.yaml` defines the three deployments, internal services, persistent volume claims and health probes. `scripts/deploy_kubernetes.py` fills the image tag, registry namespace, storage class and exact HTTPS origins. It creates random server secrets once and retains them on subsequent runs. No credentials are printed or stored in Git.
+
+```sh
+python3 scripts/deploy_kubernetes.py \
+  --namespace sn-labs-bettywhitec7 --tag 4c2af33 \
+  --origin https://bettywhitec7-8000.theiadockernext-0-labs-prod-theiak8s-4-tor01.proxy.cognitiveclass.ai \
+  --sentiment-url https://best-cars-sentiment.2gjtwx6eao4a.us-south.codeengine.appdomain.cloud \
+  --skip-network-policies --ephemeral-lab-storage
+kubectl rollout status deployment/best-cars-web
+kubectl rollout status deployment/best-cars-mongo
+kubectl rollout status deployment/best-cars-api
+kubectl port-forward --address 0.0.0.0 service/best-cars-web 8000:8000
+```
+
+Open port 8000 through Skills Network's **Launch Application** panel. The HTTPS proxy supplies the public application URL. Only use `TRUST_PROXY=1` behind this trusted proxy or an ingress that overwrites forwarding headers.
+
+### Actual lab restrictions
+
+This course's Kubernetes service account cannot create NetworkPolicy objects. Its quota permits a `skills-network-learner` storage class, but the cluster reports that class does not exist; other storage classes have zero quota. The two explicit flags above select the supported demonstration setup:
+
+- `--ephemeral-lab-storage` uses `emptyDir` volumes. Container restarts retain data; replacing a Django or MongoDB pod discards that pod's database. The local Docker Compose environment uses persistent volumes.
+- `--skip-network-policies` omits optional network policies. MongoDB and Express use internal ClusterIP services; only Django is port-forwarded. Express write requests require a server-only secret. MongoDB contains sample public dealership data and fictional demonstration reviews, so do not put real customer data in this restricted lab setup.
+
+For a cluster with persistent storage and NetworkPolicy permissions, omit both flags and pass a valid `--storage-class`. Review namespace-specific UID and filesystem-group requirements before adapting the manifest to OpenShift. The included security context targets this Kubernetes lab, not every OpenShift namespace.
+
+Django migrations and catalog seeding run at startup. The single Django replica and Recreate strategy avoid sharing SQLite across replicas. Create a superuser inside the running container with `python manage.py createsuperuser` if needed.
+
+The lab's external URLs and resources are temporary. A production deployment would additionally require PostgreSQL, authenticated MongoDB, backups, rate limiting and monitoring.
